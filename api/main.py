@@ -2,6 +2,7 @@ from fastapi import FastAPI
 import pika
 from pymongo import MongoClient
 import datetime
+import uvicorn
 
 app = FastAPI()
 # RabbitMQ fields
@@ -50,7 +51,7 @@ def query_username(username: str):
     return {"fb_id": job['fb_id']}
 
 
-@app.post("/job/{username}")
+@app.post("/post_job/{username}")
 def create_job(username: str):
     """
     Creating a new job , adding it to the db and sending a message using rabbitMQ to the microservice
@@ -62,3 +63,7 @@ def create_job(username: str):
     msg_body = f"{username},{next_job_id}"
     channel.basic_publish(exchange='', routing_key='send_jobs', body=msg_body)
     next_job_id += 1
+
+
+if __name__ == '__main__':
+    uvicorn.run(app,host="127.0.0.1", port=8000)
