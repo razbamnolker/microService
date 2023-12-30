@@ -43,12 +43,11 @@ def query_username(username: str):
     :param username:The username who we would like to get his fb_id
     :return: fb_id if exist for this username , else 404
     """
-    query = {"username": username}
     # We want the newest result for the username
-    job = collection.find_one()(query).sort({"end_time": -1}).limit(1)
+    job = collection.find({"username": username}).sort({"end_time": -1}).limit(1)
     if job is None:
         return {"404": f"Could not find a result for the following username:{username}"}
-    return {"fb_id": job['fb_id']}
+    return {"fb_id": job[0]['fb_id']}
 
 
 @app.post("/post_job/{username}")
@@ -63,6 +62,7 @@ def create_job(username: str):
     msg_body = f"{username},{next_job_id}"
     channel.basic_publish(exchange='', routing_key='send_jobs', body=msg_body)
     next_job_id += 1
+    return {"msg": "Received successfully"}
 
 
 if __name__ == '__main__':
