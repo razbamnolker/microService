@@ -1,6 +1,30 @@
 version: '3.10'
+
 services:
-  mongo:
-    image: mongo:7.0
+  fastapi:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
     ports:
-      - 27017:27017
+      - "8000:8000"
+    depends_on:
+      - mongodb
+      - rabbitmq
+
+  microservice:
+    build:
+      context: ./microservice
+      dockerfile: Dockerfile
+    depends_on:
+      - rabbitmq
+
+  mongodb:
+    image: mongo
+    ports:
+      - "27017:27017"
+
+  rabbitmq:
+    image: rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"

@@ -40,11 +40,11 @@ class Service:
 
     def handle_msg(self):
         while True:
-            self.channel.basic_consume(queue='hello', on_message_callback=self.process_msg, auto_ack=True)
+            self.channel.basic_consume(queue='send_jobs', on_message_callback=self.start_job, auto_ack=True)
             print(' [*] Waiting for messages. To exit press CTRL+C')
             self.channel.start_consuming()
 
-    def start_job(self, body: bytes):
+    def start_job(self,ch, method, properties, body: bytes):
         username, job_id = self.process_msg(body=body)
         self.update_status_after_starting_job(job_id)
         response = requests.get(f"https://facebook.com/{username}")
@@ -69,9 +69,14 @@ class Service:
                      "Error_msg": "Could not find username with the given id"}
         else:
             query = {"end_time": datetime.datetime.now(),
-                     "status": "Done", "fbid": user_id, "success": "True"}
+                     "status": "Done", "fb_id": user_id, "success": "True"}
 
         self.collection.update_one({"_id": job_id}, {"$set": query})
 
     def update_status_after_starting_job(self, job_id: int):
         self.collection.update_one({"_id": job_id}, {"$set": {"status": "In progress"}})
+
+
+if __name__ == '__main__':
+    serv = Service()
+    serv.handle_msg()

@@ -15,21 +15,22 @@ connection = pika.BlockingConnection(pika.ConnectionParameters(
 channel = connection.channel()
 channel.queue_declare(queue='send_jobs')  # Sending the created jobs to the microservice
 # DB Related Fields
-next_job_id = 1
 connection_string = "mongodb://localhost:27017/"
 db_name = "Jobs"
 client = MongoClient(connection_string)
 db = client[db_name]
 collection = db["jobs"]
+next_job_id = collection.count_documents({})+1
 
 
 @app.get("/job/{job_id}")
-def query_job(job_id: str):
+def query_job(job_id: int):
     """
 
     :param job_id: The ID of the job we want to look for
     :return: All details of job if exist , else 404
     """
+    job_id = int(job_id)
     job = collection.find_one({"_id": job_id})
     if job is None:
         return {"404": f"Could not find a job with the given ID:{job_id}"}
@@ -66,4 +67,4 @@ def create_job(username: str):
 
 
 if __name__ == '__main__':
-    uvicorn.run(app,host="127.0.0.1", port=8000)
+    uvicorn.run(app, host="127.0.0.1", port=8000)
