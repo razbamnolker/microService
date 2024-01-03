@@ -1,12 +1,13 @@
-from typing import Any, Mapping
-from fastapi import FastAPI
+import uuid
 import pika
-from pymongo import MongoClient
 import datetime
 import uvicorn
+import logging
+from pymongo import MongoClient
 from utils.Status import Status
 from utils.MessageFormatter import MessageFormatter
-import uuid
+from typing import Any, Mapping
+from fastapi import FastAPI
 
 
 class API:
@@ -28,6 +29,8 @@ class API:
         self.db = self.client[self.db_name]
         self.collection = self.db["jobs"]
         self.setup_routes()
+        # Logger
+        logging.basicConfig(filename="api_logger.txt", encoding='utf-8', level=logging.INFO)
 
     def setup_routes(self):
         @self.app.get("/job/{job_id}")
@@ -39,7 +42,9 @@ class API:
             """
             job = self.collection.find_one({"_id": job_id})
             if job is None:
+                logging.info(f"Executed get/{job_id} and got no result.")
                 return {"404": f"Could not find a job with the given ID:{job_id}"}
+            logging.info(f"Executed get/{job_id} and got result successfully.")
             return job
 
         @self.app.get("/fbid/{username}")
@@ -52,7 +57,9 @@ class API:
             # We want the newest result for the username
             job = self.collection.find({"username": username}).sort({"end_time": -1}).limit(1)
             if job is None:
+                logging.info(f"Executed fbid/{username} and got no result.")
                 return {"404": f"Could not find a result for the following username:{username}"}
+            logging.info(f"Executed fbid/{username} and got result successfully.")
             return {"fb_id": job[0]['fb_id']}
 
         @self.app.post("/post_job/{username}")
@@ -65,6 +72,7 @@ class API:
             job = {"_id": job_id, "username": username, "start_time": datetime.datetime.now(),
                    "status": Status.Ready.name}
             self.collection.insert_one(job)
+            logging.info(f"Created a new job successfully. job_id:{job_id} ")
             msg_body = MessageFormatter().encode_msg(username, job_id)
             self.channel.basic_publish(exchange='', routing_key='send_jobs', body=msg_body)
             return {"msg": f"Received successfully , your job_id is:{job_id}"}
@@ -75,4 +83,3 @@ class API:
 
 if __name__ == '__main__':
     API().run()
-
