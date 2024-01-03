@@ -2,36 +2,55 @@ import datetime
 import re
 import requests
 import pika
+import logging
 from pymongo import MongoClient
 from utils.MessageFormatter import MessageFormatter
 from utils.Status import Status
-import logging
-# TODO - lazy load rabbitMQ and Mongo
-# TODO - add logger
 # TODO config file
 
 
 class Service:
     # DB related fields
-    _CONNECTION_STRING = "mongodb://localhost:27017/"
-    _DB_NAME = "Jobs"
-    _COLLECTION_NAME = "jobs"
-    _CLIENT = MongoClient(_CONNECTION_STRING)
-    _DB = _CLIENT[_DB_NAME]
-    _COLLECTION = _DB[_COLLECTION_NAME]
+    _MONGO_CONNECTION_STRING = None
+    _DB_NAME = None
+    _COLLECTION_NAME = None
+    _CLIENT = None
+    _DB = None
+    _COLLECTION = None
+
     # RabbitMQ related fields
-    _RABBIT_CONNECTION = pika.BlockingConnection(pika.ConnectionParameters(
+    _RABBIT_CONNECTION = None
+    _CHANNEL = None
+    _RABBIT_QUEUE_NAME = None
+
+    #  Logger
+    logging.basicConfig(filename='microservice_logger.txt', encoding='utf-8', level=logging.INFO)
+
+    @classmethod
+    def load_mongo(cls):
+        # DB related fields
+        cls._MONGO_CONNECTION_STRING = "mongodb://localhost:27017/"
+        cls._DB_NAME = "Jobs"
+        cls._COLLECTION_NAME = "jobs"
+        cls._CLIENT = MongoClient(cls._MONGO_CONNECTION_STRING)
+        cls._DB = cls._CLIENT[cls._DB_NAME]
+        cls._COLLECTION = cls._DB[cls._COLLECTION_NAME]
+
+    @classmethod
+    def load_rabbit(cls):
+        cls._RABBIT_CONNECTION = pika.BlockingConnection(pika.ConnectionParameters(
             host='localhost',
             port=5672,
             virtual_host='/',
             credentials=pika.PlainCredentials('guest', 'guest')
         ))
-    _CHANNEL = _RABBIT_CONNECTION.channel()
-    _RABBIT_QUEUE_NAME = 'send_jobs'
-    _CHANNEL.queue_declare(_RABBIT_QUEUE_NAME)
-    logging.basicConfig(filename='microservice_logger.txt', encoding='utf-8', level=logging.INFO)
+        cls._CHANNEL = cls._RABBIT_CONNECTION.channel()
+        cls._RABBIT_QUEUE_NAME = 'send_jobs'
+        cls._CHANNEL.queue_declare(cls._RABBIT_QUEUE_NAME)
 
     def handle_msg(self):
+        if Service._RABBIT_CONNECTION is None:
+            Service.load_rabbit()
         while True:
             Service._CHANNEL.basic_consume(queue='send_jobs', on_message_callback=self.start_job, auto_ack=True)
             print(' [*] Waiting for messages. To exit press CTRL+C')
@@ -40,6 +59,8 @@ class Service:
 
     def start_job(self, ch, method, properties, body: bytes):
         username, job_id = MessageFormatter.decode_msg(body)
+        if Service._MONGO_CONNECTION_STRING is None:
+            Service.load_mongo()
         self.update_status_after_starting_job(job_id)
         logging.info(f"Starting to execute job:{job_id} with the username :{username}")
         user_id = self.handle_request(username)
