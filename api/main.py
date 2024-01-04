@@ -4,10 +4,10 @@ import datetime
 import uvicorn
 import logging
 from pymongo import MongoClient
-from utils.Status import Status
-from utils.MessageFormatter import MessageFormatter
 from typing import Any, Mapping
 from fastapi import FastAPI
+from api.utils.MessageFormatter import MessageFormatter
+from api.utils.Status import Status
 
 
 class API:
