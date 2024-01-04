@@ -6,8 +6,8 @@ import logging
 from pymongo import MongoClient
 from typing import Any, Mapping
 from fastapi import FastAPI
-from api.utils.MessageFormatter import MessageFormatter
-from api.utils.Status import Status
+from utils.MessageFormatter import MessageFormatter
+from utils.Status import Status
 
 
 class API:
@@ -56,7 +56,7 @@ class API:
             """
             # We want the newest result for the username
             job = self.collection.find({"username": username}).sort({"end_time": -1}).limit(1)
-            if job is None:
+            if not job.retrieved:
                 logging.info(f"Executed fbid/{username} and got no result.")
                 return {"404": f"Could not find a result for the following username:{username}"}
             logging.info(f"Executed fbid/{username} and got result successfully.")

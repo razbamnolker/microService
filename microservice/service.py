@@ -6,8 +6,8 @@ import pika
 import logging
 from bs4 import BeautifulSoup
 from pymongo import MongoClient
-from microservice.utils.MessageFormatter import MessageFormatter
-from microservice.utils.Status import Status
+from utils.MessageFormatter import MessageFormatter
+from utils.Status import Status
 from configparser import ConfigParser
 
 
@@ -28,7 +28,7 @@ class Service:
     #  Logger
     logging.basicConfig(filename='microservice_logger.txt', encoding='utf-8', level=logging.INFO)
     config_file_path = os.path.join(
-        os.path.dirname(__file__), '..', 'utils', 'Configuration.ini'
+        os.path.dirname(__file__), '..', 'Configuration.ini'
     )
     _CONFIG = ConfigParser()
     _CONFIG.read(config_file_path)
@@ -71,7 +71,10 @@ class Service:
         self.update_status_after_starting_job(job_id)
         logging.info(f"Starting to execute job:{job_id} with the username :{username}")
         user_id, err_msg = self.handle_request(username)
-        self.update_job_after_getting_result(job_id, user_id, err_msg)
+        if err_msg is None:
+            self.update_job_after_getting_result(job_id, user_id)
+        else:
+            self.update_job_after_getting_result(job_id, user_id, err_msg)
         logging.info(f"Finished executing job:{job_id}")
 
     # def handle_request(self, username: str):
@@ -90,7 +93,7 @@ class Service:
     #         return None
 
     def handle_request(self, username: str):
-        max_tries = int(Service._CONFIG['PARSING']['number_of_tries'])
+        max_tries = int(Service._CONFIG['PARSING']['NUMBER_OF_TRIES'])
         number_of_tries = 1
         while number_of_tries <= max_tries:
             response = requests.get(f"https://facebook.com/{username}")
@@ -102,7 +105,7 @@ class Service:
                 matches = set(matches)
                 if len(matches):
                     user_id = set(matches).pop()
-                    return user_id
+                    return user_id, None
                 return None, None
         logging.warning(f"Failed to get the desired url for username:{username}")
         return None, f"Failed to get the desired url for username:{username}"
