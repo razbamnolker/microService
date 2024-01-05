@@ -3,33 +3,42 @@ import pika
 import datetime
 import uvicorn
 import logging
+import os
 from pymongo import MongoClient
 from typing import Any, Mapping
 from fastapi import FastAPI
 from utils.MessageFormatter import MessageFormatter
 from utils.Status import Status
+from configparser import ConfigParser
 
 
 class API:
-    def __init__(self):
-        self.app = FastAPI()
-        # RabbitMQ fields
-        self.connection = pika.BlockingConnection(pika.ConnectionParameters(
-                host='localhost',
-                port=5672,
+    _CONFIG_FILE_PATH = os.path.join(
+        os.path.dirname(__file__), '..', 'Configuration.ini'
+    )
+    _CONFIG = ConfigParser()
+    _CONFIG.read(_CONFIG_FILE_PATH)
+    # DB related fields
+    _MONGO_CONNECTION_STRING = _CONFIG['Mongo']['_MONGO_CONNECTION_STRING']
+    _DB_NAME = _CONFIG['Mongo']['_DB_NAME']
+    _COLLECTION_NAME = _CONFIG['Mongo']['_COLLECTION_NAME']
+    _CLIENT = MongoClient(_MONGO_CONNECTION_STRING)
+    _DB = _CLIENT[_DB_NAME]
+    _COLLECTION = _DB[_COLLECTION_NAME]
+
+    # RabbitMQ related fields
+    _RABBIT_CONNECTION = pika.BlockingConnection(pika.ConnectionParameters(
+                host=_CONFIG['RabbitMQ']['_RABBIT_HOST'],
+                port=_CONFIG['RabbitMQ']['_RABBIT_PORT'],
                 virtual_host='/',
                 credentials=pika.PlainCredentials('guest', 'guest')
             ))
-        self.channel = self.connection.channel()
-        self.channel.queue_declare(queue='send_jobs')  # Sending the created jobs to the microservice
-        # DB Related Fields
-        self.connection_string = "mongodb://localhost:27017/"
-        self.db_name = "Jobs"
-        self.client = MongoClient(self.connection_string)
-        self.db = self.client[self.db_name]
-        self.collection = self.db["jobs"]
+    _CHANNEL = _RABBIT_CONNECTION.channel()
+    _RABBIT_QUEUE_NAME = _CONFIG['RabbitMQ']['_RABBIT_QUEUE_NAME']
+
+    def __init__(self):
+        self.app = FastAPI()
         self.setup_routes()
-        # Logger
         logging.basicConfig(filename="api_logger.txt", encoding='utf-8', level=logging.INFO)
 
     def setup_routes(self):
@@ -40,7 +49,7 @@ class API:
             :param job_id: The ID of the job we want to look for
             :return: All details of job if exist , else 404
             """
-            job = self.collection.find_one({"_id": job_id})
+            job = API._COLLECTION.find_one({"_id": job_id})
             if job is None:
                 logging.info(f"Executed get/{job_id} and got no result.")
                 return {"404": f"Could not find a job with the given ID:{job_id}"}
@@ -55,12 +64,14 @@ class API:
             :return: fb_id if exist for this username , else 404
             """
             # We want the newest result for the username
-            job = self.collection.find({"username": username}).sort({"end_time": -1}).limit(1)
-            if not job.retrieved:
+            job = API._COLLECTION.find({"username": username}).sort({"end_time": -1}).limit(1)
+            try:
+                fb_id = job.next()['fb_id']
+                logging.info(f"Executed fbid/{username} and got result successfully.")
+                return {"fb_id": fb_id}
+            except StopIteration:
                 logging.info(f"Executed fbid/{username} and got no result.")
                 return {"404": f"Could not find a result for the following username:{username}"}
-            logging.info(f"Executed fbid/{username} and got result successfully.")
-            return {"fb_id": job[0]['fb_id']}
 
         @self.app.post("/post_job/{username}")
         def create_job(username: str) -> dict:
@@ -71,10 +82,10 @@ class API:
             job_id = str(uuid.uuid4())
             job = {"_id": job_id, "username": username, "start_time": datetime.datetime.now(),
                    "status": Status.Ready.name}
-            self.collection.insert_one(job)
+            API._COLLECTION.insert_one(job)
             logging.info(f"Created a new job successfully. job_id:{job_id} ")
             msg_body = MessageFormatter().encode_msg(username, job_id)
-            self.channel.basic_publish(exchange='', routing_key='send_jobs', body=msg_body)
+            API._CHANNEL.basic_publish(exchange='', routing_key='send_jobs', body=msg_body)
             return {"msg": f"Received successfully , your job_id is:{job_id}"}
 
     def run(self):
