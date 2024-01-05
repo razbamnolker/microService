@@ -6,8 +6,8 @@ import pika
 import logging
 from bs4 import BeautifulSoup
 from pymongo import MongoClient
-from utils.MessageFormatter import MessageFormatter
-from utils.Status import Status
+from microservice.utils.MessageFormatter import MessageFormatter
+from microservice.utils.Status import Status
 from configparser import ConfigParser
 
 
@@ -93,6 +93,12 @@ class Service:
     #         return None
 
     def handle_request(self, username: str):
+        """
+        Getting the url content for username-> Looking for the userID in both possible formats->
+        Isolating the ID
+        :param username: the username we want to get his fb_id
+        :return: tuple of user_id of found else None , and error message if failed to get content else None
+        """
         max_tries = int(Service._CONFIG['PARSING']['NUMBER_OF_TRIES'])
         number_of_tries = 1
         while number_of_tries <= max_tries:
@@ -105,25 +111,35 @@ class Service:
                 matches = set(matches)
                 if len(matches):
                     user_id = set(matches).pop()
-                    return user_id, None
+                    return int(user_id), None
                 return None, None
         logging.warning(f"Failed to get the desired url for username:{username}")
         return None, f"Failed to get the desired url for username:{username}"
 
     def update_job_after_getting_result(self, job_id: str, user_id: int | None,
                                         err_msg: str | None = "Could not find user_id for the given username"):
+        """
+        Updating job in db with all relevant details (end time,status,success,fb_id)
+        :param job_id: job_id for the current job
+        :param user_id: int if found one , else None
+        :param err_msg: relevant error message if something went wrong or None.
+        """
         if user_id is None:  # could not find username
             query = {"end_time": datetime.datetime.now(),
-                     "status": Status.Done.name, "success": "False",
+                     "status": Status.Done.name, "success": False,
                      "Error_msg": err_msg}
         else:
             query = {"end_time": datetime.datetime.now(),
-                     "status": Status.Done.name, "fb_id": user_id, "success": "True"}
+                     "status": Status.Done.name, "fb_id": user_id, "success": True}
 
         Service._COLLECTION.update_one({"_id": job_id}, {"$set": query})
         logging.info(f"Updated job {job_id}  status to done.")
 
     def update_status_after_starting_job(self, job_id: str):
+        """
+        Update a job status from Ready to In Progress
+        :param job_id:The job needed to be updated.
+        """
         Service._COLLECTION.update_one({"_id": job_id}, {"$set": {"status": Status.InProgress.name}})
         logging.info(f"Updated job {job_id}  status to in progress")
 
