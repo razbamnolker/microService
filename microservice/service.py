@@ -36,9 +36,9 @@ class Service:
     @classmethod
     def load_mongo(cls):
         # DB related fields
-        cls._MONGO_CONNECTION_STRING = "mongodb://localhost:27017/"
-        cls._DB_NAME = "Jobs"
-        cls._COLLECTION_NAME = "jobs"
+        cls._MONGO_CONNECTION_STRING = cls._CONFIG['Mongo']['_MONGO_CONNECTION_STRING']
+        cls._DB_NAME = cls._CONFIG['Mongo']['_DB_NAME']
+        cls._COLLECTION_NAME = cls._CONFIG['Mongo']['_COLLECTION_NAME']
         cls._CLIENT = MongoClient(cls._MONGO_CONNECTION_STRING)
         cls._DB = cls._CLIENT[cls._DB_NAME]
         cls._COLLECTION = cls._DB[cls._COLLECTION_NAME]
@@ -46,13 +46,13 @@ class Service:
     @classmethod
     def load_rabbit(cls):
         cls._RABBIT_CONNECTION = pika.BlockingConnection(pika.ConnectionParameters(
-            host='localhost',
-            port=5672,
+            host=cls._CONFIG['RabbitMQ']['_RABBIT_HOST'],
+            port=cls._CONFIG['RabbitMQ']['_RABBIT_PORT'],
             virtual_host='/',
             credentials=pika.PlainCredentials('guest', 'guest')
         ))
         cls._CHANNEL = cls._RABBIT_CONNECTION.channel()
-        cls._RABBIT_QUEUE_NAME = 'send_jobs'
+        cls._RABBIT_QUEUE_NAME = cls._CONFIG['RabbitMQ']['_RABBIT_QUEUE_NAME']
         cls._CHANNEL.queue_declare(cls._RABBIT_QUEUE_NAME)
 
     def handle_msg(self):
