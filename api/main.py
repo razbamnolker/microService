@@ -11,6 +11,10 @@ from utils.MessageFormatter import MessageFormatter
 from utils.Status import Status
 from configparser import ConfigParser
 
+# TODO Retry with rabbit
+# TODO extract fields from class
+# TODO Declare basemodel/dataclass for jobs
+
 
 class API:
     _CONFIG_FILE_PATH = os.path.join(
@@ -33,7 +37,6 @@ class API:
                 virtual_host='/',
                 credentials=pika.PlainCredentials('guest', 'guest')
             ))
-    _CHANNEL = _RABBIT_CONNECTION.channel()
     _RABBIT_QUEUE_NAME = _CONFIG['RabbitMQ']['_RABBIT_QUEUE_NAME']
 
     def __init__(self):
@@ -84,8 +87,9 @@ class API:
                    "status": Status.Ready.name}
             API._COLLECTION.insert_one(job)
             logging.info(f"Created a new job successfully. job_id:{job_id} ")
-            msg_body = MessageFormatter().encode_msg(username, job_id)
-            API._CHANNEL.basic_publish(exchange='', routing_key='send_jobs', body=msg_body)
+            msg_body = MessageFormatter.encode_msg(username, job_id)
+            channel = API._RABBIT_CONNECTION.channel()
+            channel.basic_publish(exchange='', routing_key=API._RABBIT_QUEUE_NAME, body=msg_body)
             return {"msg": f"Received successfully , your job_id is:{job_id}"}
 
     def run(self):

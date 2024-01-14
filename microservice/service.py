@@ -64,7 +64,7 @@ class Service:
             logging.info("Started listening to messages")
             Service._CHANNEL.start_consuming()
 
-    def start_job(self, ch, method, properties, body: bytes):
+    def start_job(self, ch, method, properties, body: bytes) -> None:
         username, job_id = MessageFormatter.decode_msg(body)
         if Service._MONGO_CONNECTION_STRING is None:
             Service.load_mongo()
@@ -92,7 +92,7 @@ class Service:
     #             return user_id
     #         return None
 
-    def handle_request(self, username: str):
+    def handle_request(self, username: str) -> tuple[int | None, str | None]:
         """
         Getting the url content for username-> Looking for the userID in both possible formats->
         Isolating the ID
@@ -117,7 +117,7 @@ class Service:
         return None, f"Failed to get the desired url for username:{username}"
 
     def update_job_after_getting_result(self, job_id: str, user_id: int | None,
-                                        err_msg: str | None = "Could not find user_id for the given username"):
+                                        err_msg: str | None = "Could not find user_id for the given username") -> None:
         """
         Updating job in db with all relevant details (end time,status,success,fb_id)
         :param job_id: job_id for the current job
@@ -135,7 +135,7 @@ class Service:
         Service._COLLECTION.update_one({"_id": job_id}, {"$set": query})
         logging.info(f"Updated job {job_id}  status to done.")
 
-    def update_status_after_starting_job(self, job_id: str):
+    def update_status_after_starting_job(self, job_id: str) -> None:
         """
         Update a job status from Ready to In Progress
         :param job_id:The job needed to be updated.
